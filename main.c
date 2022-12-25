@@ -83,13 +83,19 @@ void openHelp() {
 int commandHandler(char **parsed) {
 
     int i, switchCommand = 0;
-    char *command_list[3];
+    char *command_list[9];
 
     command_list[0] = "exit";
     command_list[1] = "cd";
     command_list[2] = "help";
+    command_list[3] = "firstword";
+    command_list[4] = "maxword";
+    command_list[5] = "delwspace";
+    command_list[6] = "notcomment";
+    command_list[7] = "nolines";
+    command_list[8] = "ften";
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 9; i++) {
         if (strcmp(parsed[0], command_list[i]) == 0) {
             switchCommand = i + 1;
             break;
@@ -106,6 +112,49 @@ int commandHandler(char **parsed) {
         case 3:
             openHelp();
             return 1;
+
+        case 4:
+            parsed[2] = parsed[1];
+            parsed[0] = "awk";
+            parsed[1] = "{ if (++words[$0] > max) { max = words[$0]; maxW=$0 } } END { print maxW }";
+            parsed[3] = NULL;
+            return 0;
+
+        case 5:
+            parsed[2] = parsed[1];
+            parsed[0] = "awk";
+            parsed[1] = "{print $1}";
+            parsed[3] = NULL;
+            return 0;
+
+
+        case 6:
+            parsed[3] = parsed[1];
+            parsed[0] = "perl";
+            parsed[1] = "-pe";
+            parsed[2] = "s/\\s+//g";
+            parsed[4] = NULL;
+            return 0;
+
+        case 7:
+            parsed[2] = parsed[1];
+            parsed[0] = "grep";
+            parsed[1] = "^[^#]";
+            parsed[3] = NULL;
+            return 0;
+
+        case 8:
+            parsed[3] = parsed[1];
+            parsed[0] = "sed";
+            parsed[1] = "-n";
+            parsed[2] = "$=";
+            parsed[4] = NULL;
+            return 0;
+
+        case 9:
+            parsed[0] = "head";
+            parsed[2] = NULL;
+            return 0;
 
         default:
             break;
