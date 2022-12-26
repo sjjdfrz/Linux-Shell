@@ -2,6 +2,7 @@
 #include<string.h>
 #include<stdlib.h>
 #include<unistd.h>
+#include <signal.h>
 #include<sys/types.h>
 #include<sys/wait.h>
 #include<readline/readline.h>
@@ -19,6 +20,21 @@ void init() {
     clear();
 }
 
+
+void history(char *buf) {
+
+    FILE *fptr;
+
+    fptr = fopen("history.txt", "a");
+
+    if (fptr == NULL) {
+        printf("Error!");
+        exit(1);
+    }
+
+    fprintf(fptr, "%s\n", buf);
+    fclose(fptr);
+}
 
 int takeInput(char *str) {
     char *input;
