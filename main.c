@@ -12,12 +12,17 @@
 #define clear() printf("\033[H\033[J")
 
 void init() {
+    printf("\n\n\t****Welcome To My Linux Shell****\n\n");
+    sleep(2);
     clear();
-    printf("\n\n\n\n******************"
-           "************************");
-    printf("\n\n\n\t****Welcome To My Linux Shell****");
-    sleep(5);
-    clear();
+}
+
+
+void signalHandler(int sig_num) {
+
+    signal(SIGINT, signalHandler);
+    printf("\n");
+    fflush(stdout);
 }
 
 
@@ -39,7 +44,7 @@ void history(char *buf) {
 int takeInput(char *str) {
     char *input;
 
-    input = readline(" ~$ ");
+    input = readline("\n~$ ");
     if (strlen(input) != 0) {
         history(input);
         add_history(input);
@@ -55,7 +60,7 @@ void printDir() {
     char cwd[1024];
     getcwd(cwd, sizeof(cwd));
     char *username = getenv("USER");
-    printf("\n@%s:%s", username, cwd);
+    printf("\n@%s:~%s", username, cwd);
 }
 
 // function for system commands
@@ -64,17 +69,68 @@ void execArgs(char **parsed) {
     pid_t pid = fork();
 
     if (pid == -1) {
-        fprintf(stderr, "\nFailed!");
+        fprintf(stderr, "\nfailed fork!");
         return;
     } else if (pid == 0) {
 
         if (execvp(parsed[0], parsed) < 0) {
-            fprintf(stderr, "\nCould not execute command..");
+            fprintf(stderr, "\nfailed execute command..");
         }
         exit(0);
     } else {
         wait(NULL);
         return;
+    }
+}
+
+
+// Function for piped system commands
+void execArgsPiped(char **parsed, char **parsedpipe) {
+    // 0-read, 1-write
+    int pipefd[2];
+    pid_t p1, p2;
+
+    if (pipe(pipefd) < 0) {
+        fprintf(stderr, "\nfailed pipe");
+        return;
+    }
+    p1 = fork();
+    if (p1 < 0) {
+        fprintf(stderr, "\nfailed fork");
+        return;
+    }
+
+    if (p1 == 0) {
+        // p1 (child1) --> write
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[1]);
+
+        if (execvp(parsed[0], parsed) < 0) {
+            fprintf(stderr, "\nnfailed execute command 1..");
+            exit(0);
+        }
+    } else {
+        p2 = fork();
+
+        if (p2 < 0) {
+            fprintf(stderr, "\nnfailed fork");
+            return;
+        }
+
+        // p2 (child2) --> read
+        if (p2 == 0) {
+            close(pipefd[1]);
+            dup2(pipefd[0], STDIN_FILENO);
+            close(pipefd[0]);
+            if (execvp(parsedpipe[0], parsedpipe) < 0) {
+                fprintf(stderr, "\nnfailed execute command 2..");
+                exit(0);
+            }
+        } else {
+            wait(NULL);
+            wait(NULL);
+        }
     }
 }
 
@@ -98,7 +154,7 @@ void openHelp() {
 
 int commandHandler(char **parsed) {
 
-    int i, switchCommand = 0;
+    int i, switchCommand;
     char *command_list[9];
 
     command_list[0] = "exit";
@@ -113,21 +169,29 @@ int commandHandler(char **parsed) {
 
     for (i = 0; i < 9; i++) {
         if (strcmp(parsed[0], command_list[i]) == 0) {
-            switchCommand = i + 1;
+            switchCommand = i;
             break;
         }
     }
 
     switch (switchCommand) {
-        case 1:
-            printf("\nGoodbye\n");
+        case 0:
             exit(0);
-        case 2:
+
+        case 1:
             chdir(parsed[1]);
             return 1;
-        case 3:
+
+        case 2:
             openHelp();
             return 1;
+
+        case 3:
+            parsed[2] = parsed[1];
+            parsed[0] = "awk";
+            parsed[1] = "{print $1}";
+            parsed[3] = NULL;
+            return 0;
 
         case 4:
             parsed[2] = parsed[1];
@@ -137,14 +201,6 @@ int commandHandler(char **parsed) {
             return 0;
 
         case 5:
-            parsed[2] = parsed[1];
-            parsed[0] = "awk";
-            parsed[1] = "{print $1}";
-            parsed[3] = NULL;
-            return 0;
-
-
-        case 6:
             parsed[3] = parsed[1];
             parsed[0] = "perl";
             parsed[1] = "-pe";
@@ -152,14 +208,14 @@ int commandHandler(char **parsed) {
             parsed[4] = NULL;
             return 0;
 
-        case 7:
+        case 6:
             parsed[2] = parsed[1];
             parsed[0] = "grep";
             parsed[1] = "^[^#]";
             parsed[3] = NULL;
             return 0;
 
-        case 8:
+        case 7:
             parsed[3] = parsed[1];
             parsed[0] = "sed";
             parsed[1] = "-n";
@@ -167,7 +223,7 @@ int commandHandler(char **parsed) {
             parsed[4] = NULL;
             return 0;
 
-        case 9:
+        case 8:
             parsed[0] = "head";
             parsed[2] = NULL;
             return 0;
@@ -194,22 +250,48 @@ void parseSpace(char *str, char **parsed) {
 }
 
 
-int processString(char *str, char **parsed) {
+int parsePipe(char *str, char **strpiped) {
+    int i;
+    for (i = 0; i < 2; i++) {
+        strpiped[i] = strsep(&str, "|");
+        if (strpiped[i] == NULL)
+            break;
+    }
+
+    if (strpiped[1] == NULL)
+        return 0; // there is no pipe
+    else {
+        return 1;
+    }
+}
 
 
-    parseSpace(str, parsed);
+int processString(char *str, char **parsed, char **parsedpiped) {
+
+    char *strpiped[2];
+    int piped;
+
+    piped = parsePipe(str, strpiped);
+
+    if (piped) {
+        parseSpace(strpiped[0], parsed);
+        parseSpace(strpiped[1], parsedpiped);
+    } else
+        parseSpace(str, parsed);
 
     if (commandHandler(parsed))
         return 0; // own commands
     else
-        return 1; // system or pipe command
+        return 1 + piped; // system or pipe command
 }
 
 
 int main() {
-    char inputString[1000], *parsed[100];
+    char inputString[1000], *parsed[100], *parsedPiped[100];
     int execFlag;
     init();
+
+    signal(SIGINT, signalHandler);
 
     while (1) {
 
@@ -217,11 +299,13 @@ int main() {
         if (takeInput(inputString))
             continue; // there is no command
 
-        execFlag = processString(inputString, parsed);
+        execFlag = processString(inputString, parsed, parsedPiped);
 
         // system command
         if (execFlag == 1)
             execArgs(parsed);
-
+        // pipe command
+        if (execFlag == 2)
+            execArgsPiped(parsed, parsedPiped);
     }
 }
