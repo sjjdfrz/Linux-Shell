@@ -17,14 +17,13 @@ void init() {
     clear();
 }
 
-
-void signalHandler(int sig_num) {
+void signalHandler(int sig_num)
+{
 
     signal(SIGINT, signalHandler);
     printf("\n");
     fflush(stdout);
 }
-
 
 void history(char *buf) {
 
@@ -40,6 +39,22 @@ void history(char *buf) {
     fprintf(fptr, "%s\n", buf);
     fclose(fptr);
 }
+
+
+void clear_file() {
+
+    FILE *fptr;
+
+    fptr = fopen("history.txt", "w");
+
+    if (fptr == NULL) {
+        printf("Error!");
+        exit(1);
+    }
+
+    fclose(fptr);
+}
+
 
 int takeInput(char *str) {
     char *input;
@@ -82,7 +97,6 @@ void execArgs(char **parsed) {
         return;
     }
 }
-
 
 // Function for piped system commands
 void execArgsPiped(char **parsed, char **parsedpipe) {
@@ -176,6 +190,7 @@ int commandHandler(char **parsed) {
 
     switch (switchCommand) {
         case 0:
+            clear_file();
             exit(0);
 
         case 1:
@@ -236,20 +251,6 @@ int commandHandler(char **parsed) {
 }
 
 
-void parseSpace(char *str, char **parsed) {
-    int i, j;
-
-    for (i = 0; i < 100; i++) {
-        parsed[i] = strsep(&str, " ");
-
-        if (parsed[i] == NULL)
-            break;
-        if (strlen(parsed[i]) == 0)
-            i--;
-    }
-}
-
-
 int parsePipe(char *str, char **strpiped) {
     int i;
     for (i = 0; i < 2; i++) {
@@ -262,6 +263,20 @@ int parsePipe(char *str, char **strpiped) {
         return 0; // there is no pipe
     else {
         return 1;
+    }
+}
+
+
+void parseSpace(char *str, char **parsed) {
+    int i, j;
+
+    for (i = 0; i < 100; i++) {
+        parsed[i] = strsep(&str, " ");
+
+        if (parsed[i] == NULL)
+            break;
+        if (strlen(parsed[i]) == 0)
+            i--;
     }
 }
 
@@ -284,7 +299,6 @@ int processString(char *str, char **parsed, char **parsedpiped) {
     else
         return 1 + piped; // system or pipe command
 }
-
 
 int main() {
     char inputString[1000], *parsed[100], *parsedPiped[100];
